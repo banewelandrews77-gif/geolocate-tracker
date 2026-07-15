@@ -89,6 +89,17 @@
             </div>
           </div>
 
+          <!-- Starting Location input -->
+          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+            <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Start Point</span>
+            <div style="display: flex; gap: 0.4rem;">
+              <input type="text" id="routing-start-input" class="input-field" placeholder="Default: Your GPS (or enter city)" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; border-radius: 4px;" aria-label="Starting address">
+              <button class="btn btn-outline" id="btn-update-start" style="padding: 0.35rem 0.6rem; font-size: 0.8rem; border-radius: 4px;" aria-label="Update Start Location">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+          </div>
+
           <!-- Directions list -->
           <button class="btn btn-outline" id="btn-toggle-directions" style="width: 100%; padding: 0.4rem; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
             <i class="fa-solid fa-list-ol"></i> Show Turn-by-Turn

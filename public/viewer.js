@@ -44,6 +44,8 @@ const directionsListContainer = document.getElementById('directions-list-contain
 const directionsList = document.getElementById('directions-list');
 const valRoutingTime = document.getElementById('val-routing-time');
 const valRoutingDistance = document.getElementById('val-routing-distance');
+const routingStartInput = document.getElementById('routing-start-input');
+const btnUpdateStart = document.getElementById('btn-update-start');
 
 // Toast Utility
 function showToast(message, type = 'info') {
@@ -97,38 +99,6 @@ function initMap() {
     opacity: 0.8,
     lineJoin: 'round'
   }).addTo(map);
-
-  // Map click listener to override starting point manually (great for testing cross-border routes)
-  map.on('click', (e) => {
-    if (isRoutingActive) {
-      if (viewerWatchId !== null) {
-        navigator.geolocation.clearWatch(viewerWatchId);
-        viewerWatchId = null;
-      }
-
-      viewerLocation = [e.latlng.lat, e.latlng.lng];
-
-      if (!viewerMarker) {
-        const startIcon = L.divIcon({
-          className: 'pulse-marker-start',
-          html: '<div class="pulse-ring-start"></div><div class="pulse-core-start"><i class="fa-solid fa-house" style="font-size: 8px; color: white;"></i></div>',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        });
-        viewerMarker = L.marker(viewerLocation, { icon: startIcon }).addTo(map).bindPopup('Manual Start Location').openPopup();
-      } else {
-        viewerMarker.setLatLng(viewerLocation).setPopupContent('Manual Start Location').openPopup();
-      }
-
-      if (routingControl && trackerLocation) {
-        routingControl.setWaypoints([
-          L.latLng(viewerLocation[0], viewerLocation[1]),
-          L.latLng(trackerLocation[0], trackerLocation[1])
-        ]);
-      }
-      showToast('Start point set manually at click location.', 'info');
-    }
-  });
 }
 
 // Update Map Marker & Polyline
@@ -438,6 +408,96 @@ searchInput.addEventListener('keypress', (e) => {
 initMap();
 connectSocket();
 
+// Helper to calculate straight line distance
+function getHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Change start location manually via search input
+btnUpdateStart.addEventListener('click', () => {
+  const query = routingStartInput.value.trim();
+  if (!query) {
+    // Revert to browser GPS if empty
+    showToast('Reverting starting point to browser GPS...', 'info');
+    if (viewerWatchId !== null) {
+      navigator.geolocation.clearWatch(viewerWatchId);
+      viewerWatchId = null;
+    }
+    startRouting();
+    return;
+  }
+
+  btnUpdateStart.disabled = true;
+  
+  // Geocode address
+  fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, {
+    headers: {
+      'User-Agent': 'GeoLocateViewer/1.0 (contact: andy@example.com)'
+    }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Search network error');
+    return res.json();
+  })
+  .then(data => {
+    btnUpdateStart.disabled = false;
+    if (data && data.length > 0) {
+      const lat = parseFloat(data[0].lat);
+      const lon = parseFloat(data[0].lon);
+      viewerLocation = [lat, lon];
+      
+      // Stop tracking GPS if they set a manual location
+      if (viewerWatchId !== null) {
+        navigator.geolocation.clearWatch(viewerWatchId);
+        viewerWatchId = null;
+      }
+      
+      // Move start marker
+      if (!viewerMarker) {
+        const startIcon = L.divIcon({
+          className: 'pulse-marker-start',
+          html: '<div class="pulse-ring-start"></div><div class="pulse-core-start"><i class="fa-solid fa-house" style="font-size: 8px; color: white;"></i></div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        });
+        viewerMarker = L.marker(viewerLocation, { icon: startIcon }).addTo(map).bindPopup('Manual Start Location').openPopup();
+      } else {
+        viewerMarker.setLatLng(viewerLocation).bindPopup('Manual Start Location').openPopup();
+      }
+      
+      // Recalculate route waypoints
+      if (routingControl && trackerLocation) {
+        routingControl.setWaypoints([
+          L.latLng(lat, lon),
+          L.latLng(trackerLocation[0], trackerLocation[1])
+        ]);
+      }
+      showToast(`Start location set: ${data[0].name || query}`, 'success');
+    } else {
+      showToast('Start address not found.', 'error');
+    }
+  })
+  .catch(err => {
+    btnUpdateStart.disabled = false;
+    showToast('Search request failed.', 'error');
+    console.error(err);
+  });
+});
+
+routingStartInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    btnUpdateStart.click();
+  }
+});
+
 // Toggle Collapsible Directions List
 btnToggleDirections.addEventListener('click', () => {
   const isHidden = directionsListContainer.style.display === 'none';
@@ -573,10 +633,30 @@ function startRouting() {
 
         routingControl.on('routingerror', (e) => {
           console.error('Routing Error:', e);
-          valRoutingDistance.textContent = 'N/A';
-          valRoutingTime.textContent = 'N/A';
-          directionsList.innerHTML = '<li style="color: var(--color-error);">No land route available between you and the host.</li>';
-          showToast('No land route available to host location.', 'error');
+          
+          if (viewerLocation && trackerLocation) {
+            const distKm = getHaversineDistance(viewerLocation[0], viewerLocation[1], trackerLocation[0], trackerLocation[1]);
+            
+            // Assume 800 km/h flight speed
+            const flightTimeHrs = distKm / 800;
+            const flightTimeMin = Math.round(flightTimeHrs * 60);
+
+            valRoutingDistance.textContent = `${distKm.toFixed(0)} km (Fly)`;
+            valRoutingTime.textContent = flightTimeMin >= 60 
+              ? `${Math.floor(flightTimeMin/60)} hr ${flightTimeMin%60} min (Fly)` 
+              : `${flightTimeMin} min (Fly)`;
+
+            directionsList.innerHTML = `
+              <li style="color: var(--color-warning);">No land/driving route available between start and host.</li>
+              <li><strong>Straight-line flight path calculated.</strong></li>
+              <li>Flight Duration Estimate: ${valRoutingTime.textContent}</li>
+            `;
+            showToast('No land route. Calculated straight-line flight path.', 'info');
+          } else {
+            valRoutingDistance.textContent = 'N/A';
+            valRoutingTime.textContent = 'N/A';
+            directionsList.innerHTML = '<li style="color: var(--color-error);">Routing calculation error.</li>';
+          }
         });
 
         showToast('Directions route loaded successfully.', 'success');
