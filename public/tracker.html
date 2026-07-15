@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GeoLocate Tracker Sender Console - Relays high-accuracy GPS telemetry dynamically over secure WebSockets.">
+  <title>GeoLocate Tracker | Sender Console</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="app-container">
+    <main class="glass-panel tracker-dashboard">
+      <header class="tracker-header">
+        <div>
+          <h2>Sender Dashboard</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Telemetry Control Panel</p>
+        </div>
+        <div class="status-badge" id="socket-status-badge">
+          <div class="status-dot offline" id="socket-status-dot"></div>
+          <span id="socket-status-text">Disconnected</span>
+        </div>
+      </header>
+
+      <!-- Channel display and sharing -->
+      <section class="channel-share-box" aria-labelledby="channel-title">
+        <span class="channel-label" id="channel-title">Live Tracking Session Code</span>
+        <div class="channel-key-display" id="channel-key">------</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); max-width: 320px;">
+          Share this code or the link below to allow others to view your movement in real-time.
+        </p>
+        <button class="copy-btn" id="btn-copy-link" aria-label="Copy viewer link to clipboard">
+          <i class="fa-solid fa-copy"></i> Copy Viewer Link
+        </button>
+      </section>
+
+      <!-- Location Stats -->
+      <section class="stats-grid" aria-label="Live Telemetry Statistics">
+        <div class="stat-box">
+          <div class="stat-label">Latitude</div>
+          <div class="stat-val" id="val-latitude">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Longitude</div>
+          <div class="stat-val" id="val-longitude">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Speed</div>
+          <div class="stat-val" id="val-speed">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">GPS Accuracy</div>
+          <div class="stat-val" id="val-accuracy">-</div>
+        </div>
+      </section>
+
+      <!-- Manual Mock Location Panel -->
+      <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+        <span style="color: var(--text-muted); font-size: 0.85rem; display: block; margin-bottom: 0.5rem;"><i class="fa-solid fa-keyboard" style="color: var(--color-primary); margin-right: 0.5rem;"></i> Manual Address or GPS Input</span>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="manual-location-input" class="input-field" placeholder="E.g., Seattle, WA or 47.6, -122.3" style="padding: 0.5rem 0.75rem; font-size: 0.9rem;" aria-label="Manual address or coordinates input">
+          <button class="btn btn-outline" id="btn-set-manual-location" style="padding: 0.5rem 1rem; font-size: 0.9rem;" disabled>
+            <i class="fa-solid fa-map-pin"></i> Update
+          </button>
+        </div>
+      </div>
+
+      <!-- Battery/Power state info -->
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 0.85rem 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem;">
+        <span style="color: var(--text-muted);"><i class="fa-solid fa-battery-three-quarters" style="color: var(--color-success); margin-right: 0.5rem;"></i> Battery Optimization</span>
+        <span id="power-mode-status" style="font-weight: 600; color: var(--color-success);">ACTIVE (STANDBY)</span>
+      </div>
+
+      <!-- Controls -->
+      <div style="display: flex; gap: 1rem; width: 100%;">
+        <button class="btn btn-primary" id="btn-toggle-tracking" style="flex-grow: 2;" disabled>
+          <i class="fa-solid fa-play"></i> Initialize GPS
+        </button>
+        <a href="/" class="btn btn-outline" style="flex-grow: 1;">
+          <i class="fa-solid fa-home"></i> Exit
+        </a>
+      </div>
+    </main>
+  </div>
+
+  <!-- Contextual Permission Modal -->
+  <div class="modal-overlay" id="consent-modal" aria-hidden="true" role="dialog">
+    <div class="modal-content glass-panel">
+      <div class="modal-illustration">
+        <i class="fa-solid fa-location-dot"></i>
+      </div>
+      <h3>Enable GPS Telemetry</h3>
+      <p>
+        GeoLocate uses high-accuracy GPS streaming to share your live coordinates with viewers in real-time. Please authorize location services when prompted.
+      </p>
+      
+      <div class="modal-features">
+        <div class="modal-feature-item">
+          <i class="fa-solid fa-circle-check"></i>
+          <span><strong>High Precision:</strong> Sub-10m deviation using your device's native GPS hardware interface.</span>
+        </div>
+        <div class="modal-feature-item">
+          <i class="fa-solid fa-circle-check"></i>
+          <span><strong>Battery Protection:</strong> Automatic tracking suspension when this browser tab is closed or minimized.</span>
+        </div>
+        <div class="modal-feature-item">
+          <i class="fa-solid fa-circle-check"></i>
+          <span><strong>Secure Channel:</strong> Fully encrypted SSL/TLS socket pipeline restricted to your session code.</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 1rem;">
+        <button class="btn btn-primary" id="btn-modal-grant" style="flex-grow: 1;">
+          Grant Access
+        </button>
+        <button class="btn btn-outline" id="btn-modal-cancel" style="flex-grow: 1;">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="/tracker.js"></script>
+</body>
+</html>

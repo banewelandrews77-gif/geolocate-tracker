@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GeoLocate Tracker - Fast, secure, and cross-platform real-time location-sharing engine over lightweight WebSockets. No installations required.">
+  <meta name="keywords" content="location tracker, real-time GPS, live map, WebSockets, HTML5 Geolocation">
+  <meta name="author" content="GeoLocate Team">
+  <title>GeoLocate Tracker | Real-Time Location Sharing</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="hero-section">
+      <h1><span class="text-gradient">GeoLocate</span> Tracker</h1>
+      <p>High-performance, secure, and cross-platform real-time location-sharing engine over a lightweight web connection.</p>
+    </header>
+
+    <main class="role-grid">
+      <!-- Tracker Card -->
+      <section class="glass-panel role-card tracker-card" id="tracker-card">
+        <div>
+          <div class="role-icon">
+            <i class="fa-solid fa-location-crosshairs"></i>
+          </div>
+          <h2>Start Tracking</h2>
+          <p>Generate a secure session key to stream your device's high-accuracy GPS coordinates in real-time. Best for mobile browsers.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-create-session" aria-label="Create Tracker Session">
+          <i class="fa-solid fa-satellite-dish"></i> Create Session
+        </button>
+      </section>
+
+      <!-- Viewer Card -->
+      <section class="glass-panel role-card viewer-card" id="viewer-card">
+        <div>
+          <div class="role-icon">
+            <i class="fa-solid fa-map-location-dot"></i>
+          </div>
+          <h2>View Live Map</h2>
+          <p>Monitor real-time movement traces, speeds, and trajectories of active hosts on an interactive dynamic map.</p>
+          
+          <div class="form-group">
+            <input type="text" id="session-key-input" class="input-field" placeholder="Enter Session Code (e.g. A1B2C3)" maxlength="10" aria-label="Session Code Input">
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="btn-join-session" aria-label="Join Viewer Session">
+          <i class="fa-solid fa-eye"></i> Join Session
+        </button>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script>
+    // Toast Utility
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      
+      let icon = 'fa-info-circle';
+      if (type === 'success') icon = 'fa-check-circle';
+      if (type === 'error') icon = 'fa-exclamation-triangle';
+      
+      toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'slideInRight 0.3s reverse forwards';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Helper to generate a random session code (6 characters)
+    function generateSessionCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid ambiguous chars
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    // Create session button handler
+    document.getElementById('btn-create-session').addEventListener('click', () => {
+      const code = generateSessionCode();
+      showToast(`Generating session ${code}...`, 'success');
+      setTimeout(() => {
+        window.location.href = `/track/${code}`;
+      }, 800);
+    });
+
+    // Join session button handler
+    document.getElementById('btn-join-session').addEventListener('click', () => {
+      const input = document.getElementById('session-key-input');
+      const val = input.value.trim().toUpperCase();
+      
+      if (!val) {
+        showToast('Please enter a valid session code.', 'error');
+        input.focus();
+        return;
+      }
+      
+      window.location.href = `/view/${val}`;
+    });
+
+    // Support hitting enter on the input field
+    document.getElementById('session-key-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('btn-join-session').click();
+      }
+    });
+  </script>
+</body>
+</html>

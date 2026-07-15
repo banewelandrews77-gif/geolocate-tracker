@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GeoLocate Tracker Viewer Panel - Renders real-time movement traces, paths, and positions dynamically on a high-fidelity interactive map.">
+  <title>GeoLocate Tracker | Live Viewer Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body style="overflow: hidden;">
+  <div class="viewer-layout">
+    <!-- Map Container (takes full height/width) -->
+    <div id="map" class="map-container" aria-label="Interactive Map Display"></div>
+
+    <!-- Floating Map Search Overlay -->
+    <div class="search-overlay" id="map-search-box">
+      <input type="text" id="map-search-input" class="input-field" placeholder="Search address on map..." style="padding: 0.4rem 0.65rem; font-size: 0.85rem; border-radius: 4px;" aria-label="Search address on map">
+      <button class="btn btn-outline" id="btn-map-search" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; border-radius: 4px;" aria-label="Submit Map Search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+      </button>
+    </div>
+
+    <!-- Floating UI Overlay -->
+    <main class="viewer-overlay glass-panel" aria-labelledby="viewer-title">
+      <header class="viewer-header">
+        <div>
+          <h2 id="viewer-title" style="font-size: 1.25rem;">Live Viewer</h2>
+          <p style="color: var(--text-muted); font-size: 0.75rem;">Session Key: <strong id="channel-key-label" class="text-gradient">------</strong></p>
+        </div>
+        <div class="status-badge" id="socket-status-badge">
+          <div class="status-dot offline" id="socket-status-dot"></div>
+          <span id="socket-status-text" style="font-size: 0.7rem;">Offline</span>
+        </div>
+      </header>
+
+      <!-- Connection Status indicator of the tracker host -->
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 0.65rem 0.85rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+        <span style="color: var(--text-muted);"><i class="fa-solid fa-satellite-dish" style="margin-right: 0.4rem;"></i> Host Tracker Status</span>
+        <span id="tracker-host-status" style="font-weight: 700; color: var(--color-error);">OFFLINE</span>
+      </div>
+
+      <!-- Live Telemetry Fields -->
+      <section class="viewer-stats-list" aria-label="Host Coordinates & Telemetry">
+        <div class="viewer-stat-row">
+          <span class="label">Latitude</span>
+          <span class="val" id="val-latitude">-</span>
+        </div>
+        <div class="viewer-stat-row">
+          <span class="label">Longitude</span>
+          <span class="val" id="val-longitude">-</span>
+        </div>
+        <div class="viewer-stat-row">
+          <span class="label">Current Speed</span>
+          <span class="val" id="val-speed">-</span>
+        </div>
+        <div class="viewer-stat-row">
+          <span class="label">GPS Accuracy</span>
+          <span class="val" id="val-accuracy">-</span>
+        </div>
+        <div class="viewer-stat-row">
+          <span class="label">Last Signal</span>
+          <span class="val" id="val-timestamp">-</span>
+        </div>
+        <div class="viewer-stat-row">
+          <span class="label">Recorded Points</span>
+          <span class="val" id="val-total-points">0</span>
+        </div>
+      </section>
+
+      <!-- Real-Time Routing Control & Stats -->
+      <section style="margin-top: 1rem; border-top: 1px solid var(--border-glass); padding-top: 1rem; margin-bottom: 1rem;" aria-label="Route Guidance">
+        <button class="btn btn-outline" id="btn-toggle-routing" style="width: 100%; padding: 0.5rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+          <i class="fa-solid fa-route" style="color: var(--color-primary);"></i> Get Directions to Host
+        </button>
+        
+        <div id="routing-details-container" style="display: none; margin-top: 0.75rem; flex-direction: column; gap: 0.75rem;">
+          <!-- Routing stats summary -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 0.5rem; text-align: center;">
+              <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Travel Time</div>
+              <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--color-success);" id="val-routing-time">-</div>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 0.5rem; text-align: center;">
+              <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Distance</div>
+              <div style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--color-primary);" id="val-routing-distance">-</div>
+            </div>
+          </div>
+
+          <!-- Directions list -->
+          <button class="btn btn-outline" id="btn-toggle-directions" style="width: 100%; padding: 0.4rem; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
+            <i class="fa-solid fa-list-ol"></i> Show Turn-by-Turn
+          </button>
+          
+          <div id="directions-list-container" style="display: none; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 0.5rem; font-size: 0.75rem;">
+            <ol id="directions-list" style="padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem; color: var(--text-muted);">
+              <li>Calculating route...</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <!-- Toggle center and UI commands -->
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; color: var(--text-main); user-select: none;">
+          <input type="checkbox" id="chk-auto-center" checked style="accent-color: var(--color-primary); width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--border-glass);">
+          <span>Auto-Center Map on Host</span>
+        </label>
+        
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button class="btn btn-outline" id="btn-clear-path" style="flex-grow: 1; padding: 0.5rem; font-size: 0.85rem;" aria-label="Clear Local Map Path">
+            <i class="fa-solid fa-trash-can"></i> Clear Trace
+          </button>
+          <a href="/" class="btn btn-primary" style="flex-grow: 1; padding: 0.5rem; font-size: 0.85rem;">
+            <i class="fa-solid fa-home"></i> Exit Map
+          </a>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- Load Leaflet JS before our custom viewer.js -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <script src="/viewer.js"></script>
+</body>
+</html>
