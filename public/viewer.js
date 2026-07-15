@@ -97,6 +97,38 @@ function initMap() {
     opacity: 0.8,
     lineJoin: 'round'
   }).addTo(map);
+
+  // Map click listener to override starting point manually (great for testing cross-border routes)
+  map.on('click', (e) => {
+    if (isRoutingActive) {
+      if (viewerWatchId !== null) {
+        navigator.geolocation.clearWatch(viewerWatchId);
+        viewerWatchId = null;
+      }
+
+      viewerLocation = [e.latlng.lat, e.latlng.lng];
+
+      if (!viewerMarker) {
+        const startIcon = L.divIcon({
+          className: 'pulse-marker-start',
+          html: '<div class="pulse-ring-start"></div><div class="pulse-core-start"><i class="fa-solid fa-house" style="font-size: 8px; color: white;"></i></div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        });
+        viewerMarker = L.marker(viewerLocation, { icon: startIcon }).addTo(map).bindPopup('Manual Start Location').openPopup();
+      } else {
+        viewerMarker.setLatLng(viewerLocation).setPopupContent('Manual Start Location').openPopup();
+      }
+
+      if (routingControl && trackerLocation) {
+        routingControl.setWaypoints([
+          L.latLng(viewerLocation[0], viewerLocation[1]),
+          L.latLng(trackerLocation[0], trackerLocation[1])
+        ]);
+      }
+      showToast('Start point set manually at click location.', 'info');
+    }
+  });
 }
 
 // Update Map Marker & Polyline
